@@ -1,0 +1,5 @@
+import os
+import random
+os.system('start "" ' + os.path.abspath(__file__))
+while true:
+	print(i+random.choice(range(100)))

