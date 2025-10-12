@@ -1,3 +1,4 @@
+
 # My own Malicious Python Samples
 
 ### WARNING: I AM NOT RESPONSIBLE FOR ANY ACCIDENTAL DAMAGE ON ANYBODY'S COMPUTER!
@@ -42,6 +43,11 @@ To remove, ``Alt+Tab`` to the python shell and press ``Alt+F4``, then delete all
 It repeatedly asks for UAC until it has admin, and then gives you a GUI with some buttons. Try to close it, you lose. Press one and you have a chance of losing. If you lose, it forcefully removes the ``C:\`` partition and tries to delete it out. Then it forcefully restarts your computer with ``shutdown -r -f -t 0``.
 
 To remove, restart your computer before pressing any buttons.
+
+### Tetrodotoxin.py
+
+This is my #1 Favourite! It follows suite with GDIfunnies.py, as a GDI *contraption* - however with EXTRA **SPICE**. It literally is just a SUPER COOL demo - and I designed the early models to have no persistence mechanisms - because these are for *hobbies*, not ***cybercrimes***.
+It invokes ``user32.dll``, ``gdi32.dll``, ``kernel32.dll``, and ``winmm.dll`` to create a GDI malware effect. And, of course, I used a tiny bit of AI to help - because I know literally NOTHING when it comes to ``ctypes`` and ``DLL``s. It evolves the GDI craziness over time, until *something* happens. (I'm not going to spoil it, because you NEED to see it.)
 
 ### UAC.py
 
